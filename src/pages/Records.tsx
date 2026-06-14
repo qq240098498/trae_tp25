@@ -1,17 +1,20 @@
 import { useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Plus, Search, MapPin, Filter } from 'lucide-react';
+import { Plus, Search, MapPin, Filter, CheckCircle2, AlertCircle, AlertTriangle, Clock, Bell, XCircle } from 'lucide-react';
 import { useParkingStore } from '@/store/useParkingStore';
-import { formatDuration, formatAmount, formatDate, getMonthKey } from '@/utils/stats';
-import { PAYMENT_METHOD_LABELS, PAYMENT_METHOD_COLORS } from '@/types';
+import { formatDuration, formatAmount, formatDate, getMonthKey, getDeadlineStatus, formatTimeRemaining } from '@/utils/stats';
+import { PAYMENT_METHOD_LABELS, PAYMENT_METHOD_COLORS, type ParkingRecord } from '@/types';
 import { cn } from '@/lib/utils';
 import Empty from '@/components/Empty';
 
+type FilterType = 'all' | 'unpaid' | 'paid' | 'urgent' | 'expired';
+
 export default function Records() {
   const navigate = useNavigate();
-  const { records } = useParkingStore();
+  const { records, markAsPaid } = useParkingStore();
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedMonth, setSelectedMonth] = useState<string>('');
+  const [filterType, setFilterType] = useState<FilterType>('all');
 
   const months = useMemo(() => {
     const monthSet = new Set<string>();
@@ -29,6 +32,24 @@ export default function Records() {
       result = result.filter((r) => getMonthKey(r.date) === selectedMonth);
     }
 
+    if (filterType !== 'all') {
+      result = result.filter((r) => {
+        const status = getDeadlineStatus(r);
+        switch (filterType) {
+          case 'unpaid':
+            return !r.isPaid;
+          case 'paid':
+            return r.isPaid;
+          case 'urgent':
+            return status === 'urgent';
+          case 'expired':
+            return status === 'expired';
+          default:
+            return true;
+        }
+      });
+    }
+
     if (searchQuery.trim()) {
       const query = searchQuery.toLowerCase();
       result = result.filter(
@@ -39,15 +60,60 @@ export default function Records() {
     }
 
     return result;
-  }, [records, selectedMonth, searchQuery]);
+  }, [records, selectedMonth, searchQuery, filterType]);
 
   const totalAmount = filteredRecords.reduce((sum, r) => sum + r.amount, 0);
   const totalDuration = filteredRecords.reduce((sum, r) => sum + r.duration, 0);
+  const unpaidTotal = filteredRecords.filter((r) => !r.isPaid).reduce((sum, r) => sum + r.amount, 0);
 
   const formatMonthLabel = (key: string) => {
     const [year, month] = key.split('-');
     return `${year}年${parseInt(month)}月`;
   };
+
+  const getStatusBadge = (record: ParkingRecord) => {
+    const status = getDeadlineStatus(record);
+    switch (status) {
+      case 'paid':
+        return {
+          icon: CheckCircle2,
+          label: '已缴',
+          className: 'bg-emerald-50 text-emerald-600 border-emerald-200',
+          dot: 'bg-emerald-500',
+        };
+      case 'expired':
+        return {
+          icon: XCircle,
+          label: '逾期',
+          className: 'bg-red-50 text-red-600 border-red-200',
+          dot: 'bg-red-500 animate-pulse',
+        };
+      case 'urgent':
+        return {
+          icon: AlertTriangle,
+          label: '紧急',
+          className: 'bg-orange-50 text-orange-600 border-orange-200',
+          dot: 'bg-orange-500 animate-pulse',
+        };
+      case 'pending':
+        return {
+          icon: Clock,
+          label: '待缴',
+          className: 'bg-amber-50 text-amber-600 border-amber-200',
+          dot: 'bg-amber-500',
+        };
+      default:
+        return null;
+    }
+  };
+
+  const filterOptions: { value: FilterType; label: string; icon: typeof Filter }[] = [
+    { value: 'all', label: '全部', icon: Filter },
+    { value: 'unpaid', label: '待缴', icon: Clock },
+    { value: 'urgent', label: '紧急', icon: AlertTriangle },
+    { value: 'expired', label: '逾期', icon: AlertCircle },
+    { value: 'paid', label: '已缴', icon: CheckCircle2 },
+  ];
 
   return (
     <div className="space-y-6 animate-fade-in">
@@ -56,6 +122,11 @@ export default function Records() {
           <h2 className="text-2xl font-bold text-neutral-900">停车记录</h2>
           <p className="text-sm text-neutral-500 mt-1">
             共 {filteredRecords.length} 条记录 · 总支出 {formatAmount(totalAmount)}
+            {unpaidTotal > 0 && (
+              <span className="ml-2 text-amber-600 font-medium">
+                · 待缴 {formatAmount(unpaidTotal)}
+              </span>
+            )}
           </p>
         </div>
         <button
@@ -65,6 +136,24 @@ export default function Records() {
           <Plus className="w-4 h-4" />
           新增记录
         </button>
+      </div>
+
+      <div className="flex flex-wrap gap-2">
+        {filterOptions.map((option) => (
+          <button
+            key={option.value}
+            onClick={() => setFilterType(option.value)}
+            className={cn(
+              'flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-medium transition-all border',
+              filterType === option.value
+                ? 'bg-primary-700 text-white border-primary-700 shadow-card'
+                : 'bg-white text-neutral-600 border-neutral-200 hover:border-primary-300 hover:text-primary-700'
+            )}
+          >
+            <option.icon className="w-4 h-4" />
+            {option.label}
+          </button>
+        ))}
       </div>
 
       <div className="flex flex-col sm:flex-row gap-3">
@@ -110,46 +199,104 @@ export default function Records() {
         </div>
       ) : (
         <div className="space-y-3">
-          {filteredRecords.map((record, index) => (
-            <div
-              key={record.id}
-              onClick={() => navigate(`/records/${record.id}`)}
-              className="bg-white rounded-2xl shadow-card p-5 hover:shadow-card-hover transition-all duration-200 cursor-pointer animate-slide-up"
-              style={{ animationDelay: `${index * 50}ms` }}
-            >
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-4 min-w-0 flex-1">
-                  <div className="w-12 h-12 rounded-xl bg-primary-50 flex items-center justify-center flex-shrink-0">
-                    <MapPin className="w-5 h-5 text-primary-700" />
+          {filteredRecords.map((record, index) => {
+            const statusBadge = getStatusBadge(record);
+            const deadlineStatus = getDeadlineStatus(record);
+            return (
+              <div
+                key={record.id}
+                onClick={() => navigate(`/records/${record.id}`)}
+                className="bg-white rounded-2xl shadow-card p-5 hover:shadow-card-hover transition-all duration-200 cursor-pointer animate-slide-up group"
+                style={{ animationDelay: `${index * 50}ms` }}
+              >
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-4 min-w-0 flex-1">
+                    <div className={cn(
+                      'w-12 h-12 rounded-xl flex items-center justify-center flex-shrink-0',
+                      deadlineStatus === 'expired' ? 'bg-red-50' :
+                      deadlineStatus === 'urgent' ? 'bg-orange-50' :
+                      deadlineStatus === 'pending' ? 'bg-amber-50' : 'bg-primary-50'
+                    )}>
+                      <MapPin className={cn(
+                        'w-5 h-5',
+                        deadlineStatus === 'expired' ? 'text-red-600' :
+                        deadlineStatus === 'urgent' ? 'text-orange-600' :
+                        deadlineStatus === 'pending' ? 'text-amber-600' : 'text-primary-700'
+                      )} />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-2">
+                        <p className="text-sm font-semibold text-neutral-900 truncate">
+                          {record.locationName}
+                        </p>
+                        {statusBadge && (
+                          <span className={cn(
+                            'inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-medium border flex-shrink-0',
+                            statusBadge.className
+                          )}>
+                            <span className={cn('w-1.5 h-1.5 rounded-full', statusBadge.dot)} />
+                            <statusBadge.icon className="w-3 h-3" />
+                            {statusBadge.label}
+                          </span>
+                        )}
+                        {record.reminderEnabled && !record.isPaid && (
+                          <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-md text-[10px] font-medium bg-violet-50 text-violet-600 border border-violet-200 flex-shrink-0">
+                            <Bell className="w-3 h-3" />
+                            提醒
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-xs text-neutral-500 mt-0.5">
+                        {formatDate(record.date)} · {formatDuration(record.duration)}
+                      </p>
+                      {!record.isPaid && record.paymentDeadline && (
+                        <p className={cn(
+                          'text-xs mt-1 font-medium',
+                          deadlineStatus === 'expired' ? 'text-red-600' :
+                          deadlineStatus === 'urgent' ? 'text-orange-600' : 'text-amber-600'
+                        )}>
+                          {deadlineStatus === 'expired'
+                            ? `⚠️ 已逾期，请尽快缴费`
+                            : `⏰ 缴费剩余：${formatTimeRemaining(record.paymentDeadline)}`
+                          }
+                        </p>
+                      )}
+                      {record.notes && (
+                        <p className="text-xs text-neutral-400 mt-1 truncate">{record.notes}</p>
+                      )}
+                    </div>
                   </div>
-                  <div className="min-w-0 flex-1">
-                    <p className="text-sm font-semibold text-neutral-900 truncate">
-                      {record.locationName}
+                  <div className="text-right flex-shrink-0 ml-4 flex flex-col items-end gap-1">
+                    <p className="text-lg font-bold text-neutral-900">
+                      {formatAmount(record.amount)}
                     </p>
-                    <p className="text-xs text-neutral-500 mt-0.5">
-                      {formatDate(record.date)} · {formatDuration(record.duration)}
-                    </p>
-                    {record.notes && (
-                      <p className="text-xs text-neutral-400 mt-1 truncate">{record.notes}</p>
+                    <div className="flex items-center gap-1">
+                      <span
+                        className={cn(
+                          'inline-block text-[10px] px-2 py-0.5 rounded-full font-medium',
+                          PAYMENT_METHOD_COLORS[record.paymentMethod]
+                        )}
+                      >
+                        {PAYMENT_METHOD_LABELS[record.paymentMethod]}
+                      </span>
+                    </div>
+                    {!record.isPaid && (
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          markAsPaid(record.id);
+                        }}
+                        className="mt-1 opacity-0 group-hover:opacity-100 transition-opacity text-[10px] px-2.5 py-1 rounded-lg bg-emerald-500 text-white font-medium hover:bg-emerald-600 flex items-center gap-1"
+                      >
+                        <CheckCircle2 className="w-3 h-3" />
+                        已缴费
+                      </button>
                     )}
                   </div>
-                </div>
-                <div className="text-right flex-shrink-0 ml-4">
-                  <p className="text-lg font-bold text-neutral-900">
-                    {formatAmount(record.amount)}
-                  </p>
-                  <span
-                    className={cn(
-                      'inline-block text-[10px] px-2 py-0.5 rounded-full font-medium mt-1',
-                      PAYMENT_METHOD_COLORS[record.paymentMethod]
-                    )}
-                  >
-                    {PAYMENT_METHOD_LABELS[record.paymentMethod]}
-                  </span>
                 </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
 

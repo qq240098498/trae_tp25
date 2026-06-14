@@ -1,16 +1,20 @@
 import { useNavigate } from 'react-router-dom';
-import { Wallet, Clock, FileText, Plus, CarFront, ChevronRight, MapPin } from 'lucide-react';
+import { Wallet, Clock, FileText, Plus, CarFront, ChevronRight, MapPin, Bell, AlertTriangle, AlertCircle } from 'lucide-react';
 import { useParkingStore } from '@/store/useParkingStore';
 import StatCard from '@/components/StatCard';
-import { formatDuration, formatAmount, formatDate, getCurrentMonthStats } from '@/utils/stats';
+import { formatDuration, formatAmount, formatDate, getCurrentMonthStats, formatTimeRemaining, getDeadlineStatus } from '@/utils/stats';
 import { PAYMENT_METHOD_LABELS, PAYMENT_METHOD_COLORS } from '@/types';
 import { cn } from '@/lib/utils';
+import { usePaymentReminder } from '@/hooks/usePaymentReminder';
 
 export default function Home() {
   const navigate = useNavigate();
-  const { records, currentSpot } = useParkingStore();
+  const { records, currentSpot, markAsPaid } = useParkingStore();
   const stats = getCurrentMonthStats(records);
   const recentRecords = records.slice(0, 5);
+  const { getUnpaidRecords, getUrgentRecords, getExpiredRecords, unpaidCount, urgentCount, expiredCount } = usePaymentReminder();
+
+  const unpaidRecords = getUnpaidRecords();
 
   return (
     <div className="space-y-6 animate-fade-in">
@@ -20,6 +24,129 @@ export default function Home() {
         </p>
         <h2 className="text-2xl font-bold text-neutral-900 mt-1">您好，欢迎回来 👋</h2>
       </div>
+
+      {unpaidCount > 0 && (
+        <div className="space-y-3 animate-slide-up">
+          {urgentCount > 0 && (
+            <div
+              className="group relative overflow-hidden rounded-2xl p-5 bg-gradient-to-r from-orange-500 to-red-500 text-white shadow-card hover:shadow-card-hover transition-all duration-300 cursor-pointer"
+              onClick={() => navigate('/records')}
+            >
+              <div className="absolute top-0 right-0 w-32 h-32 bg-white/10 rounded-full -translate-y-1/3 translate-x-1/3 group-hover:scale-110 transition-transform" />
+              <div className="relative z-10 flex items-center gap-4">
+                <div className="w-14 h-14 rounded-2xl bg-white/20 backdrop-blur flex items-center justify-center flex-shrink-0">
+                  <AlertTriangle className="w-7 h-7" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <h3 className="text-lg font-bold">即将到期 {urgentCount} 笔</h3>
+                  <p className="text-sm text-white/80 mt-1">
+                    有缴费即将在1小时内截止，请及时处理
+                  </p>
+                </div>
+                <ChevronRight className="w-6 h-6 text-white/60 flex-shrink-0" />
+              </div>
+            </div>
+          )}
+
+          {expiredCount > 0 && (
+            <div
+              className="group relative overflow-hidden rounded-2xl p-5 bg-gradient-to-r from-red-600 to-red-800 text-white shadow-card hover:shadow-card-hover transition-all duration-300 cursor-pointer"
+              onClick={() => navigate('/records')}
+            >
+              <div className="absolute top-0 right-0 w-32 h-32 bg-white/10 rounded-full -translate-y-1/3 translate-x-1/3 group-hover:scale-110 transition-transform" />
+              <div className="relative z-10 flex items-center gap-4">
+                <div className="w-14 h-14 rounded-2xl bg-white/20 backdrop-blur flex items-center justify-center flex-shrink-0">
+                  <AlertCircle className="w-7 h-7" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <h3 className="text-lg font-bold">已逾期 {expiredCount} 笔</h3>
+                  <p className="text-sm text-white/80 mt-1">
+                    已超过缴费截止时间，尽快处理避免滞纳金
+                  </p>
+                </div>
+                <ChevronRight className="w-6 h-6 text-white/60 flex-shrink-0" />
+              </div>
+            </div>
+          )}
+
+          {unpaidRecords.length > 0 && (
+            <div className="bg-white rounded-2xl shadow-card overflow-hidden animate-slide-up">
+              <div className="flex items-center justify-between px-5 py-4 border-b border-neutral-100 bg-amber-50/50">
+                <div className="flex items-center gap-2">
+                  <Bell className="w-5 h-5 text-amber-600" />
+                  <h3 className="text-base font-bold text-neutral-900">待缴费提醒</h3>
+                  <span className="px-2 py-0.5 rounded-full bg-amber-100 text-amber-700 text-xs font-medium">
+                    {unpaidCount} 笔
+                  </span>
+                </div>
+                <button
+                  onClick={() => navigate('/records')}
+                  className="flex items-center gap-1 text-sm text-primary-700 font-medium hover:text-primary-900 transition-colors"
+                >
+                  查看全部
+                  <ChevronRight className="w-4 h-4" />
+                </button>
+              </div>
+              <div className="divide-y divide-neutral-100">
+                {unpaidRecords.slice(0, 3).map((record) => {
+                  const status = getDeadlineStatus(record);
+                  return (
+                    <div
+                      key={record.id}
+                      className="px-5 py-4 hover:bg-neutral-50 transition-colors cursor-pointer"
+                      onClick={() => navigate(`/records/${record.id}`)}
+                    >
+                      <div className="flex items-center justify-between gap-4">
+                        <div className="flex items-center gap-3 min-w-0 flex-1">
+                          <div className={cn(
+                            'w-11 h-11 rounded-xl flex items-center justify-center flex-shrink-0',
+                            status === 'expired' ? 'bg-red-100' :
+                            status === 'urgent' ? 'bg-orange-100' : 'bg-amber-100'
+                          )}>
+                            <MapPin className={cn(
+                              'w-5 h-5',
+                              status === 'expired' ? 'text-red-600' :
+                              status === 'urgent' ? 'text-orange-600' : 'text-amber-600'
+                            )} />
+                          </div>
+                          <div className="min-w-0 flex-1">
+                            <p className="text-sm font-semibold text-neutral-900 truncate">
+                              {record.locationName}
+                            </p>
+                            {record.paymentDeadline && (
+                              <p className={cn(
+                                'text-xs mt-0.5 font-medium',
+                                status === 'expired' ? 'text-red-600' :
+                                status === 'urgent' ? 'text-orange-600' : 'text-amber-600'
+                              )}>
+                                {status === 'expired' ? '已逾期' : `剩余 ${formatTimeRemaining(record.paymentDeadline)}`}
+                              </p>
+                            )}
+                          </div>
+                        </div>
+                        <div className="text-right flex-shrink-0">
+                          <p className="text-base font-bold text-neutral-900">
+                            {formatAmount(record.amount)}
+                          </p>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              markAsPaid(record.id);
+                            }}
+                            className="mt-1 text-[10px] px-2 py-0.5 rounded-md bg-emerald-50 text-emerald-600 font-medium hover:bg-emerald-100 transition-colors"
+                          >
+                            标记已缴
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <StatCard

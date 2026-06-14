@@ -9,6 +9,8 @@ import Statistics from '@/pages/Statistics';
 import ParkingSpot from '@/pages/ParkingSpot';
 import { useParkingStore } from '@/store/useParkingStore';
 import { MOCK_RECORDS, MOCK_SPOT } from '@/utils/mockData';
+import PaymentReminderToast from '@/components/PaymentReminderToast';
+import type { ParkingRecord } from '@/types';
 
 function AppRoutes() {
   const { records, currentSpot, addRecord, setCurrentSpot } = useParkingStore();
@@ -19,7 +21,7 @@ function AppRoutes() {
         const { id, createdAt, ...rest } = r;
         void id;
         void createdAt;
-        addRecord(rest);
+        addRecord(rest as Omit<ParkingRecord, 'id' | 'createdAt'>);
       });
     }
     if (!currentSpot) {
@@ -33,6 +35,7 @@ function AppRoutes() {
 
   return (
     <Layout>
+      <PaymentReminderToast />
       <Routes>
         <Route path="/" element={<Home />} />
         <Route path="/records" element={<Records />} />

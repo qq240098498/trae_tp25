@@ -17,6 +17,53 @@ export const formatDate = (dateStr: string): string => {
   return `${d.getFullYear()}年${d.getMonth() + 1}月${d.getDate()}日`;
 };
 
+export const formatDateTime = (dateTimeStr: string): string => {
+  const d = new Date(dateTimeStr);
+  const datePart = `${d.getFullYear()}年${d.getMonth() + 1}月${d.getDate()}日`;
+  const timePart = `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+  return `${datePart} ${timePart}`;
+};
+
+export const formatTimeRemaining = (deadlineStr: string): string => {
+  const now = new Date().getTime();
+  const deadline = new Date(deadlineStr).getTime();
+  const diff = deadline - now;
+
+  if (diff <= 0) return '已过期';
+
+  const hours = Math.floor(diff / (1000 * 60 * 60));
+  const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+  const days = Math.floor(hours / 24);
+  const remainingHours = hours % 24;
+
+  if (days > 0) {
+    return `${days}天${remainingHours}小时`;
+  }
+  if (hours > 0) {
+    return `${hours}小时${minutes}分钟`;
+  }
+  return `${minutes}分钟`;
+};
+
+export const isDeadlineExpired = (deadlineStr: string): boolean => {
+  return new Date().getTime() > new Date(deadlineStr).getTime();
+};
+
+export const isDeadlineUrgent = (deadlineStr: string, minutesThreshold = 60): boolean => {
+  const now = new Date().getTime();
+  const deadline = new Date(deadlineStr).getTime();
+  const diff = deadline - now;
+  return diff > 0 && diff <= minutesThreshold * 60 * 1000;
+};
+
+export const getDeadlineStatus = (record: ParkingRecord): 'paid' | 'expired' | 'urgent' | 'pending' | 'none' => {
+  if (record.isPaid) return 'paid';
+  if (!record.paymentDeadline) return 'none';
+  if (isDeadlineExpired(record.paymentDeadline)) return 'expired';
+  if (isDeadlineUrgent(record.paymentDeadline)) return 'urgent';
+  return 'pending';
+};
+
 export const getMonthLabel = (dateStr: string): string => {
   const d = new Date(dateStr);
   return `${d.getMonth() + 1}月`;

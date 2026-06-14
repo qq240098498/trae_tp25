@@ -1,8 +1,8 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, useParams, useLocation } from 'react-router-dom';
-import { ArrowLeft, MapPin, Clock, Wallet, CreditCard, Save, Calendar } from 'lucide-react';
+import { ArrowLeft, MapPin, Clock, Wallet, CreditCard, Save, Calendar, Bell, BellOff, AlertCircle, CheckCircle2 } from 'lucide-react';
 import { useParkingStore } from '@/store/useParkingStore';
-import { formatDuration, formatAmount } from '@/utils/stats';
+import { formatDuration, formatAmount, formatDateTime } from '@/utils/stats';
 import { PAYMENT_METHOD_LABELS, type PaymentMethod } from '@/types';
 import { cn } from '@/lib/utils';
 import LocationPickerModal from '@/components/LocationPickerModal';
@@ -25,6 +25,12 @@ export default function RecordForm() {
   const [notes, setNotes] = useState('');
   const [showLocationPicker, setShowLocationPicker] = useState(false);
 
+  const [isPrepaid, setIsPrepaid] = useState(true);
+  const [isPaid, setIsPaid] = useState(true);
+  const [paymentDeadlineDate, setPaymentDeadlineDate] = useState('');
+  const [paymentDeadlineTime, setPaymentDeadlineTime] = useState('');
+  const [reminderEnabled, setReminderEnabled] = useState(false);
+
   useEffect(() => {
     if (isEdit) {
       const record = getRecord(id!);
@@ -38,12 +44,42 @@ export default function RecordForm() {
         setAmount(String(record.amount));
         setPaymentMethod(record.paymentMethod);
         setNotes(record.notes || '');
+        setIsPrepaid(record.isPrepaid);
+        setIsPaid(record.isPaid);
+        setReminderEnabled(record.reminderEnabled);
+        if (record.paymentDeadline) {
+          const deadline = new Date(record.paymentDeadline);
+          setPaymentDeadlineDate(deadline.toISOString().slice(0, 10));
+          setPaymentDeadlineTime(
+            `${String(deadline.getHours()).padStart(2, '0')}:${String(deadline.getMinutes()).padStart(2, '0')}`
+          );
+        }
       }
     }
   }, [isEdit, id, getRecord]);
 
+  useEffect(() => {
+    if (!isPrepaid && !paymentDeadlineDate && !paymentDeadlineTime) {
+      const defaultDeadline = new Date();
+      defaultDeadline.setHours(defaultDeadline.getHours() + 2);
+      setPaymentDeadlineDate(defaultDeadline.toISOString().slice(0, 10));
+      setPaymentDeadlineTime(
+        `${String(defaultDeadline.getHours()).padStart(2, '0')}:${String(defaultDeadline.getMinutes()).padStart(2, '0')}`
+      );
+      setReminderEnabled(true);
+    }
+    if (isPrepaid) {
+      setIsPaid(true);
+    }
+  }, [isPrepaid, isEdit, paymentDeadlineDate, paymentDeadlineTime]);
+
   const duration = parseInt(hours) * 60 + parseInt(minutes);
   const amountNum = parseFloat(amount) || 0;
+
+  const getPaymentDeadlineISO = (): string | undefined => {
+    if (isPrepaid || !paymentDeadlineDate || !paymentDeadlineTime) return undefined;
+    return new Date(`${paymentDeadlineDate}T${paymentDeadlineTime}:00`).toISOString();
+  };
 
   const canSubmit = locationName.trim() && duration > 0 && amountNum > 0;
 
@@ -59,6 +95,11 @@ export default function RecordForm() {
       amount: amountNum,
       paymentMethod,
       notes: notes.trim() || undefined,
+      isPrepaid,
+      isPaid: isPrepaid ? true : isPaid,
+      paymentDeadline: getPaymentDeadlineISO(),
+      reminderEnabled: !isPrepaid && reminderEnabled,
+      reminderSent: false,
     };
 
     if (isEdit) {
@@ -230,6 +271,143 @@ export default function RecordForm() {
               ))}
             </div>
           </div>
+        </div>
+
+        <div className="bg-white rounded-2xl shadow-card p-5 space-y-5">
+          <div>
+            <label className="block text-sm font-medium text-neutral-700 mb-3">
+              缴费类型
+            </label>
+            <div className="grid grid-cols-2 gap-3">
+              <button
+                type="button"
+                onClick={() => setIsPrepaid(true)}
+                className={cn(
+                  'flex flex-col items-center gap-2 py-4 px-3 rounded-xl border-2 transition-all',
+                  isPrepaid
+                    ? 'border-emerald-500 bg-emerald-50 text-emerald-700'
+                    : 'border-neutral-200 bg-white text-neutral-600 hover:border-neutral-300'
+                )}
+              >
+                <CheckCircle2 className="w-6 h-6" />
+                <div className="text-center">
+                  <p className="text-sm font-semibold">预先缴费</p>
+                  <p className="text-[10px] mt-0.5 opacity-70">出门前已缴清</p>
+                </div>
+              </button>
+              <button
+                type="button"
+                onClick={() => setIsPrepaid(false)}
+                className={cn(
+                  'flex flex-col items-center gap-2 py-4 px-3 rounded-xl border-2 transition-all',
+                  !isPrepaid
+                    ? 'border-amber-500 bg-amber-50 text-amber-700'
+                    : 'border-neutral-200 bg-white text-neutral-600 hover:border-neutral-300'
+                )}
+              >
+                <AlertCircle className="w-6 h-6" />
+                <div className="text-center">
+                  <p className="text-sm font-semibold">先停后缴</p>
+                  <p className="text-[10px] mt-0.5 opacity-70">需设置缴费截止时间</p>
+                </div>
+              </button>
+            </div>
+          </div>
+
+          {!isPrepaid && (
+            <div className="space-y-4 p-4 rounded-xl bg-amber-50/50 border border-amber-200 animate-fade-in">
+              <div>
+                <label className="block text-sm font-medium text-neutral-700 mb-2 flex items-center gap-2">
+                  <Calendar className="w-4 h-4 text-amber-600" />
+                  缴费截止时间
+                </label>
+                <div className="flex gap-2">
+                  <input
+                    type="date"
+                    value={paymentDeadlineDate}
+                    onChange={(e) => setPaymentDeadlineDate(e.target.value)}
+                    className="flex-1 px-4 py-3 rounded-xl border border-neutral-300 focus:border-amber-500 focus:ring-2 focus:ring-amber-100 outline-none transition-all text-sm bg-white"
+                  />
+                  <input
+                    type="time"
+                    value={paymentDeadlineTime}
+                    onChange={(e) => setPaymentDeadlineTime(e.target.value)}
+                    className="px-4 py-3 rounded-xl border border-neutral-300 focus:border-amber-500 focus:ring-2 focus:ring-amber-100 outline-none transition-all text-sm bg-white"
+                  />
+                </div>
+                {getPaymentDeadlineISO() && (
+                  <p className="text-xs text-neutral-500 mt-2">
+                    截止：{formatDateTime(getPaymentDeadlineISO()!)}
+                  </p>
+                )}
+              </div>
+
+              <div className="flex items-center justify-between py-2">
+                <div className="flex items-center gap-2">
+                  {reminderEnabled ? (
+                    <Bell className="w-5 h-5 text-amber-600" />
+                  ) : (
+                    <BellOff className="w-5 h-5 text-neutral-400" />
+                  )}
+                  <div>
+                    <p className="text-sm font-medium text-neutral-700">
+                      到期前1小时提醒
+                    </p>
+                    <p className="text-[11px] text-neutral-500">
+                      避免忘记缴费产生滞纳金
+                    </p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setReminderEnabled(!reminderEnabled)}
+                  className={cn(
+                    'relative w-12 h-7 rounded-full transition-colors',
+                    reminderEnabled ? 'bg-amber-500' : 'bg-neutral-300'
+                  )}
+                >
+                  <span
+                    className={cn(
+                      'absolute top-1 w-5 h-5 rounded-full bg-white shadow transition-all',
+                      reminderEnabled ? 'left-6' : 'left-1'
+                    )}
+                  />
+                </button>
+              </div>
+
+              <div className="flex items-center justify-between py-2 border-t border-amber-200">
+                <div className="flex items-center gap-2">
+                  <CheckCircle2 className={cn(
+                    'w-5 h-5',
+                    isPaid ? 'text-emerald-600' : 'text-neutral-400'
+                  )} />
+                  <div>
+                    <p className="text-sm font-medium text-neutral-700">
+                      是否已缴费
+                    </p>
+                    <p className="text-[11px] text-neutral-500">
+                      {isPaid ? '已完成缴费' : '待缴费中'}
+                    </p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setIsPaid(!isPaid)}
+                  className={cn(
+                    'relative w-12 h-7 rounded-full transition-colors',
+                    isPaid ? 'bg-emerald-500' : 'bg-neutral-300'
+                  )}
+                >
+                  <span
+                    className={cn(
+                      'absolute top-1 w-5 h-5 rounded-full bg-white shadow transition-all',
+                      isPaid ? 'left-6' : 'left-1'
+                    )}
+                  />
+                </button>
+              </div>
+            </div>
+          )}
         </div>
 
         <div className="bg-white rounded-2xl shadow-card p-5">

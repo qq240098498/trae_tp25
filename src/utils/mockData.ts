@@ -9,6 +9,18 @@ function daysAgo(n: number): string {
   return FORMAT_DATE(d);
 }
 
+function daysLater(n: number): Date {
+  const d = new Date(TODAY);
+  d.setDate(d.getDate() + n);
+  return d;
+}
+
+function hoursLater(n: number): Date {
+  const d = new Date(TODAY);
+  d.setHours(d.getHours() + n);
+  return d;
+}
+
 function monthsAgoStart(n: number): string {
   const d = new Date(TODAY);
   d.setMonth(d.getMonth() - n);
@@ -19,6 +31,40 @@ function monthsAgoStart(n: number): string {
 export const MOCK_RECORDS: ParkingRecord[] = [
   {
     id: 'r1',
+    date: FORMAT_DATE(TODAY),
+    locationName: '西单大悦城停车场',
+    lat: 39.9087,
+    lng: 116.3975,
+    duration: 120,
+    amount: 24,
+    paymentMethod: 'qrcode',
+    notes: '先停车后扫码，未缴费',
+    createdAt: new Date(TODAY.getTime() - 7200000).toISOString(),
+    isPrepaid: false,
+    paymentDeadline: hoursLater(2).toISOString(),
+    reminderEnabled: true,
+    reminderSent: false,
+    isPaid: false,
+  },
+  {
+    id: 'r2',
+    date: FORMAT_DATE(TODAY),
+    locationName: '王府井商业街路边',
+    lat: 39.9147,
+    lng: 116.4103,
+    duration: 90,
+    amount: 15,
+    paymentMethod: 'qrcode',
+    notes: '路边电子停车，记得30分钟内缴费',
+    createdAt: new Date(TODAY.getTime() - 5400000).toISOString(),
+    isPrepaid: false,
+    paymentDeadline: hoursLater(0.5).toISOString(),
+    reminderEnabled: true,
+    reminderSent: false,
+    isPaid: false,
+  },
+  {
+    id: 'r3',
     date: daysAgo(1),
     locationName: '公司楼下停车场',
     lat: 39.9087,
@@ -28,9 +74,13 @@ export const MOCK_RECORDS: ParkingRecord[] = [
     paymentMethod: 'app',
     notes: '早9点到晚6点',
     createdAt: new Date(TODAY.getTime() - 86400000).toISOString(),
+    isPrepaid: true,
+    reminderEnabled: false,
+    reminderSent: false,
+    isPaid: true,
   },
   {
-    id: 'r2',
+    id: 'r4',
     date: daysAgo(2),
     locationName: '家附近小区外',
     lat: 39.9187,
@@ -39,9 +89,13 @@ export const MOCK_RECORDS: ParkingRecord[] = [
     amount: 25,
     paymentMethod: 'qrcode',
     createdAt: new Date(TODAY.getTime() - 2 * 86400000).toISOString(),
+    isPrepaid: true,
+    reminderEnabled: false,
+    reminderSent: false,
+    isPaid: true,
   },
   {
-    id: 'r3',
+    id: 'r5',
     date: daysAgo(4),
     locationName: '朝阳大悦城',
     lat: 39.9287,
@@ -51,9 +105,13 @@ export const MOCK_RECORDS: ParkingRecord[] = [
     paymentMethod: 'cash',
     notes: '购物停车',
     createdAt: new Date(TODAY.getTime() - 4 * 86400000).toISOString(),
+    isPrepaid: true,
+    reminderEnabled: false,
+    reminderSent: false,
+    isPaid: true,
   },
   {
-    id: 'r4',
+    id: 'r6',
     date: daysAgo(6),
     locationName: '公司楼下停车场',
     lat: 39.9087,
@@ -62,9 +120,13 @@ export const MOCK_RECORDS: ParkingRecord[] = [
     amount: 40,
     paymentMethod: 'app',
     createdAt: new Date(TODAY.getTime() - 6 * 86400000).toISOString(),
+    isPrepaid: true,
+    reminderEnabled: false,
+    reminderSent: false,
+    isPaid: true,
   },
   {
-    id: 'r5',
+    id: 'r7',
     date: daysAgo(10),
     locationName: '公司楼下停车场',
     lat: 39.9087,
@@ -73,9 +135,13 @@ export const MOCK_RECORDS: ParkingRecord[] = [
     amount: 50,
     paymentMethod: 'app',
     createdAt: new Date(TODAY.getTime() - 10 * 86400000).toISOString(),
+    isPrepaid: true,
+    reminderEnabled: false,
+    reminderSent: false,
+    isPaid: true,
   },
   {
-    id: 'r6',
+    id: 'r8',
     date: monthsAgoStart(1).slice(0, 8) + '15',
     locationName: '公司楼下停车场',
     lat: 39.9087,
@@ -84,9 +150,13 @@ export const MOCK_RECORDS: ParkingRecord[] = [
     amount: 48,
     paymentMethod: 'app',
     createdAt: new Date(TODAY.getTime() - 30 * 86400000).toISOString(),
+    isPrepaid: true,
+    reminderEnabled: false,
+    reminderSent: false,
+    isPaid: true,
   },
   {
-    id: 'r7',
+    id: 'r9',
     date: monthsAgoStart(1).slice(0, 8) + '20',
     locationName: '家附近小区外',
     lat: 39.9187,
@@ -95,9 +165,13 @@ export const MOCK_RECORDS: ParkingRecord[] = [
     amount: 20,
     paymentMethod: 'qrcode',
     createdAt: new Date(TODAY.getTime() - 35 * 86400000).toISOString(),
+    isPrepaid: true,
+    reminderEnabled: false,
+    reminderSent: false,
+    isPaid: true,
   },
   {
-    id: 'r8',
+    id: 'r10',
     date: monthsAgoStart(2).slice(0, 8) + '10',
     locationName: '公司楼下停车场',
     lat: 39.9087,
@@ -106,9 +180,13 @@ export const MOCK_RECORDS: ParkingRecord[] = [
     amount: 46,
     paymentMethod: 'app',
     createdAt: new Date(TODAY.getTime() - 60 * 86400000).toISOString(),
+    isPrepaid: true,
+    reminderEnabled: false,
+    reminderSent: false,
+    isPaid: true,
   },
   {
-    id: 'r9',
+    id: 'r11',
     date: monthsAgoStart(3).slice(0, 8) + '05',
     locationName: '三里屯太古里',
     lat: 39.9387,
@@ -117,6 +195,10 @@ export const MOCK_RECORDS: ParkingRecord[] = [
     amount: 32,
     paymentMethod: 'qrcode',
     createdAt: new Date(TODAY.getTime() - 90 * 86400000).toISOString(),
+    isPrepaid: true,
+    reminderEnabled: false,
+    reminderSent: false,
+    isPaid: true,
   },
 ];
 

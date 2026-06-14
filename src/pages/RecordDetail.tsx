@@ -12,9 +12,13 @@ import {
   FileText,
   Map as MapIcon,
   Navigation,
+  Bell,
+  CheckCircle2,
+  AlertTriangle,
+  AlertCircle,
 } from 'lucide-react';
 import { useParkingStore } from '@/store/useParkingStore';
-import { formatDuration, formatAmount, formatDate } from '@/utils/stats';
+import { formatDuration, formatAmount, formatDate, formatDateTime, formatTimeRemaining, getDeadlineStatus } from '@/utils/stats';
 import { PAYMENT_METHOD_LABELS, PAYMENT_METHOD_COLORS } from '@/types';
 import { cn } from '@/lib/utils';
 import { openWalkingNavigation, hasCoordinates } from '@/utils/navigation';
@@ -22,7 +26,7 @@ import { openWalkingNavigation, hasCoordinates } from '@/utils/navigation';
 export default function RecordDetail() {
   const navigate = useNavigate();
   const { id } = useParams();
-  const { getRecord, deleteRecord } = useParkingStore();
+  const { getRecord, deleteRecord, markAsPaid } = useParkingStore();
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
   const record = id ? getRecord(id) : undefined;
@@ -66,6 +70,45 @@ export default function RecordDetail() {
       name: record.locationName,
     });
   };
+
+  const handleMarkAsPaid = () => {
+    markAsPaid(record.id);
+  };
+
+  const deadlineStatus = getDeadlineStatus(record);
+
+  const getDeadlineBadge = () => {
+    switch (deadlineStatus) {
+      case 'paid':
+        return {
+          icon: CheckCircle2,
+          label: '已缴费',
+          className: 'bg-emerald-100 text-emerald-700',
+        };
+      case 'expired':
+        return {
+          icon: AlertCircle,
+          label: '已逾期',
+          className: 'bg-red-100 text-red-700',
+        };
+      case 'urgent':
+        return {
+          icon: AlertTriangle,
+          label: '即将到期',
+          className: 'bg-orange-100 text-orange-700',
+        };
+      case 'pending':
+        return {
+          icon: Clock,
+          label: '待缴费',
+          className: 'bg-amber-100 text-amber-700',
+        };
+      default:
+        return null;
+    }
+  };
+
+  const deadlineBadge = getDeadlineBadge();
 
   const infoItems = [
     {
@@ -138,10 +181,23 @@ export default function RecordDetail() {
             <MapPin className="w-7 h-7 text-white" />
           </div>
           <div className="flex-1 min-w-0">
-            <h3 className="text-xl font-bold truncate">{record.locationName}</h3>
-            <p className="text-sm text-white/70 mt-1">
-              {formatDate(record.date)}
-            </p>
+            <div className="flex items-start justify-between gap-3">
+              <div className="min-w-0">
+                <h3 className="text-xl font-bold truncate">{record.locationName}</h3>
+                <p className="text-sm text-white/70 mt-1">
+                  {formatDate(record.date)}
+                </p>
+              </div>
+              {deadlineBadge && (
+                <span className={cn(
+                  'flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium flex-shrink-0',
+                  deadlineBadge.className
+                )}>
+                  <deadlineBadge.icon className="w-3.5 h-3.5" />
+                  {deadlineBadge.label}
+                </span>
+              )}
+            </div>
             {record.lat && record.lng && (
               <div className="flex items-center gap-1 mt-2 text-xs text-white/60">
                 <MapIcon className="w-3.5 h-3.5" />
@@ -167,6 +223,79 @@ export default function RecordDetail() {
           </div>
         </div>
       </div>
+
+      {!record.isPrepaid && record.paymentDeadline && (
+        <div className={cn(
+          'rounded-2xl p-5 shadow-card animate-slide-up',
+          deadlineStatus === 'expired' ? 'bg-gradient-to-br from-red-50 to-red-100 border border-red-200' :
+          deadlineStatus === 'urgent' ? 'bg-gradient-to-br from-orange-50 to-amber-100 border border-orange-200' :
+          'bg-gradient-to-br from-amber-50 to-yellow-100 border border-amber-200'
+        )}>
+          <div className="flex items-start gap-4">
+            <div className={cn(
+              'w-12 h-12 rounded-xl flex items-center justify-center flex-shrink-0',
+              deadlineStatus === 'expired' ? 'bg-red-200' :
+              deadlineStatus === 'urgent' ? 'bg-orange-200' : 'bg-amber-200'
+            )}>
+              {deadlineStatus === 'expired' ? (
+                <AlertCircle className={cn('w-6 h-6', 'text-red-700')} />
+              ) : deadlineStatus === 'urgent' ? (
+                <AlertTriangle className={cn('w-6 h-6', 'text-orange-700')} />
+              ) : (
+                <Clock className={cn('w-6 h-6', 'text-amber-700')} />
+              )}
+            </div>
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-2">
+                <h4 className={cn(
+                  'text-base font-bold',
+                  deadlineStatus === 'expired' ? 'text-red-800' :
+                  deadlineStatus === 'urgent' ? 'text-orange-800' : 'text-amber-800'
+                )}>
+                  {deadlineStatus === 'expired' ? '缴费已逾期' :
+                   deadlineStatus === 'urgent' ? '缴费即将截止' : '待缴停车费'}
+                </h4>
+                {record.reminderEnabled && (
+                  <span className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-white/60 text-[10px] font-medium text-neutral-600">
+                    <Bell className="w-3 h-3" />
+                    已设提醒
+                  </span>
+                )}
+              </div>
+              <p className={cn(
+                'text-sm mt-1.5',
+                deadlineStatus === 'expired' ? 'text-red-700' :
+                deadlineStatus === 'urgent' ? 'text-orange-700' : 'text-amber-700'
+              )}>
+                缴费截止：{formatDateTime(record.paymentDeadline)}
+              </p>
+              {!record.isPaid && (
+                <p className={cn(
+                  'text-sm font-semibold mt-1',
+                  deadlineStatus === 'expired' ? 'text-red-800' :
+                  deadlineStatus === 'urgent' ? 'text-orange-800' : 'text-amber-800'
+                )}>
+                  {deadlineStatus === 'expired'
+                    ? '已超过截止时间，请尽快缴费避免产生滞纳金！'
+                    : `剩余时间：${formatTimeRemaining(record.paymentDeadline)}`
+                  }
+                </p>
+              )}
+              {!record.isPaid && deadlineStatus !== 'paid' && (
+                <div className="flex gap-2 mt-4">
+                  <button
+                    onClick={handleMarkAsPaid}
+                    className="flex-1 px-4 py-2.5 rounded-xl bg-emerald-600 text-white text-sm font-medium hover:bg-emerald-700 transition-colors flex items-center justify-center gap-1.5"
+                  >
+                    <CheckCircle2 className="w-4 h-4" />
+                    标记已缴费
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
       <div className="grid grid-cols-2 gap-4">
         {infoItems.map((item, index) => (

@@ -11,6 +11,11 @@ export interface ParkingRecord {
   paymentMethod: PaymentMethod;
   notes?: string;
   createdAt: string;
+  isPrepaid: boolean;
+  paymentDeadline?: string;
+  reminderEnabled: boolean;
+  reminderSent: boolean;
+  isPaid: boolean;
 }
 
 export interface ParkingSpot {
