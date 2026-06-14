@@ -1,8 +1,8 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useNavigate, useParams, useLocation } from 'react-router-dom';
-import { ArrowLeft, MapPin, Clock, Wallet, CreditCard, Save, Calendar, Bell, BellOff, AlertCircle, CheckCircle2 } from 'lucide-react';
+import { ArrowLeft, MapPin, Clock, Wallet, CreditCard, Save, Calendar, Bell, BellOff, AlertCircle, CheckCircle2, Ticket, X, ChevronDown, ChevronUp } from 'lucide-react';
 import { useParkingStore } from '@/store/useParkingStore';
-import { formatDuration, formatAmount, formatDateTime } from '@/utils/stats';
+import { formatDuration, formatAmount, formatDateTime, isCouponApplicable, calculateCouponDiscount } from '@/utils/stats';
 import { PAYMENT_METHOD_LABELS, type PaymentMethod } from '@/types';
 import { cn } from '@/lib/utils';
 import LocationPickerModal from '@/components/LocationPickerModal';
@@ -12,7 +12,7 @@ export default function RecordForm() {
   const { id } = useParams();
   const location = useLocation();
   const isEdit = location.pathname.includes('/edit') && !!id;
-  const { addRecord, updateRecord, getRecord } = useParkingStore();
+  const { addRecord, updateRecord, getRecord, getAvailableCoupons, markCouponUsed, markCouponUnused, getCoupon } = useParkingStore();
 
   const [date, setDate] = useState(new Date().toISOString().slice(0, 10));
   const [locationName, setLocationName] = useState('');
@@ -31,6 +31,35 @@ export default function RecordForm() {
   const [paymentDeadlineTime, setPaymentDeadlineTime] = useState('');
   const [reminderEnabled, setReminderEnabled] = useState(false);
 
+  const [selectedCouponId, setSelectedCouponId] = useState<string | null>(null);
+  const [showCouponPicker, setShowCouponPicker] = useState(false);
+  const [originalCouponId, setOriginalCouponId] = useState<string | null>(null);
+
+  const amountNum = parseFloat(amount) || 0;
+
+  const availableCoupons = useMemo(() => {
+    return getAvailableCoupons().map((coupon) => ({
+      coupon,
+      ...isCouponApplicable(coupon, amountNum, date),
+    }));
+  }, [getAvailableCoupons, amountNum, date]);
+
+  const applicableCoupons = availableCoupons.filter((c) => c.applicable);
+
+  const selectedCoupon = useMemo(() => {
+    if (!selectedCouponId) return null;
+    return getCoupon(selectedCouponId) || null;
+  }, [selectedCouponId, getCoupon]);
+
+  const couponDiscount = useMemo(() => {
+    if (!selectedCoupon) return 0;
+    const check = isCouponApplicable(selectedCoupon, amountNum, date);
+    if (!check.applicable) return 0;
+    return calculateCouponDiscount(selectedCoupon, amountNum);
+  }, [selectedCoupon, amountNum, date]);
+
+  const finalAmount = Math.max(0, amountNum - couponDiscount);
+
   useEffect(() => {
     if (isEdit) {
       const record = getRecord(id!);
@@ -41,12 +70,20 @@ export default function RecordForm() {
         setLng(record.lng);
         setHours(String(Math.floor(record.duration / 60)));
         setMinutes(String(record.duration % 60));
-        setAmount(String(record.amount));
+        if (record.couponId && record.originalAmount) {
+          setAmount(String(record.originalAmount));
+        } else {
+          setAmount(String(record.amount));
+        }
         setPaymentMethod(record.paymentMethod);
         setNotes(record.notes || '');
         setIsPrepaid(record.isPrepaid);
         setIsPaid(record.isPaid);
         setReminderEnabled(record.reminderEnabled);
+        if (record.couponId) {
+          setSelectedCouponId(record.couponId);
+          setOriginalCouponId(record.couponId);
+        }
         if (record.paymentDeadline) {
           const deadline = new Date(record.paymentDeadline);
           setPaymentDeadlineDate(deadline.toISOString().slice(0, 10));
@@ -74,7 +111,6 @@ export default function RecordForm() {
   }, [isPrepaid, isEdit, paymentDeadlineDate, paymentDeadlineTime]);
 
   const duration = parseInt(hours) * 60 + parseInt(minutes);
-  const amountNum = parseFloat(amount) || 0;
 
   const getPaymentDeadlineISO = (): string | undefined => {
     if (isPrepaid || !paymentDeadlineDate || !paymentDeadlineTime) return undefined;
@@ -86,13 +122,24 @@ export default function RecordForm() {
   const handleSubmit = () => {
     if (!canSubmit) return;
 
-    const data = {
+    const newRecordId = isEdit ? id! : null;
+
+    if (isEdit) {
+      if (originalCouponId && originalCouponId !== selectedCouponId) {
+        markCouponUnused(originalCouponId);
+      }
+    }
+
+    const recordData = {
       date,
       locationName: locationName.trim(),
       lat,
       lng,
       duration,
-      amount: amountNum,
+      amount: finalAmount,
+      originalAmount: selectedCouponId ? amountNum : undefined,
+      couponId: selectedCouponId || undefined,
+      couponDiscount: selectedCouponId ? couponDiscount : undefined,
       paymentMethod,
       notes: notes.trim() || undefined,
       isPrepaid,
@@ -102,10 +149,18 @@ export default function RecordForm() {
       reminderSent: false,
     };
 
+    let recordIdToUse = newRecordId;
+
     if (isEdit) {
-      updateRecord(id!, data);
+      updateRecord(id!, recordData);
     } else {
-      addRecord(data);
+      const tempId = Math.random().toString(36).slice(2, 10) + Date.now().toString(36);
+      recordIdToUse = tempId;
+      addRecord(recordData);
+    }
+
+    if (selectedCouponId && recordIdToUse) {
+      markCouponUsed(selectedCouponId, recordIdToUse);
     }
 
     navigate('/records');
@@ -245,6 +300,152 @@ export default function RecordForm() {
               <p className="text-xs text-neutral-500 mt-2">
                 每小时约 {formatAmount(amountNum / (duration / 60))}
               </p>
+            )}
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-neutral-700 mb-2 flex items-center gap-2">
+              <Ticket className="w-4 h-4 text-violet-500" />
+              使用优惠券
+            </label>
+            <div className="relative">
+              <button
+                type="button"
+                onClick={() => setShowCouponPicker(!showCouponPicker)}
+                disabled={availableCoupons.length === 0}
+                className={cn(
+                  'w-full px-4 py-3 rounded-xl border transition-all text-left flex items-center justify-between',
+                  availableCoupons.length === 0
+                    ? 'border-neutral-200 bg-neutral-50 text-neutral-400 cursor-not-allowed'
+                    : 'border-neutral-300 bg-white hover:border-violet-400 focus:border-violet-500 focus:ring-2 focus:ring-violet-100 outline-none'
+                )}
+              >
+                {selectedCoupon ? (
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-xl bg-violet-100 flex items-center justify-center flex-shrink-0">
+                      <Ticket className="w-5 h-5 text-violet-600" />
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-sm font-semibold text-neutral-900 truncate">
+                        {selectedCoupon.name}
+                      </p>
+                      <p className="text-xs text-violet-600 font-medium">
+                        抵扣 {formatAmount(couponDiscount)}
+                      </p>
+                    </div>
+                  </div>
+                ) : (
+                  <span className={cn(
+                    'text-sm',
+                    availableCoupons.length === 0 ? 'text-neutral-400' : 'text-neutral-600'
+                  )}>
+                    {availableCoupons.length === 0
+                      ? '暂无可使用的优惠券'
+                      : applicableCoupons.length > 0
+                        ? `${applicableCoupons.length} 张可用，点击选择`
+                        : '点击查看优惠券'
+                    }
+                  </span>
+                )}
+                <div className="flex items-center gap-2">
+                  {selectedCoupon && (
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setSelectedCouponId(null);
+                      }}
+                      className="w-7 h-7 rounded-lg bg-neutral-100 hover:bg-red-100 flex items-center justify-center text-neutral-400 hover:text-red-500 transition-colors"
+                    >
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  )}
+                  {showCouponPicker ? (
+                    <ChevronUp className="w-4 h-4 text-neutral-400" />
+                  ) : (
+                    <ChevronDown className="w-4 h-4 text-neutral-400" />
+                  )}
+                </div>
+              </button>
+
+              {showCouponPicker && availableCoupons.length > 0 && (
+                <div className="absolute top-full left-0 right-0 mt-2 bg-white rounded-xl border border-neutral-200 shadow-lg z-20 overflow-hidden max-h-80 overflow-y-auto">
+                  {availableCoupons.map(({ coupon, applicable, reason }) => (
+                    <button
+                      key={coupon.id}
+                      type="button"
+                      onClick={() => {
+                        if (applicable) {
+                          setSelectedCouponId(coupon.id);
+                          setShowCouponPicker(false);
+                        }
+                      }}
+                      disabled={!applicable}
+                      className={cn(
+                        'w-full px-4 py-3 text-left border-b border-neutral-100 last:border-b-0 transition-colors',
+                        selectedCouponId === coupon.id
+                          ? 'bg-violet-50'
+                          : applicable
+                            ? 'hover:bg-neutral-50'
+                            : 'opacity-60 cursor-not-allowed bg-neutral-50'
+                      )}
+                    >
+                      <div className="flex items-center justify-between gap-3">
+                        <div className="flex items-center gap-3 min-w-0">
+                          <div className={cn(
+                            'w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0',
+                            applicable ? 'bg-violet-100' : 'bg-neutral-200'
+                          )}>
+                            <Ticket className={cn(
+                              'w-5 h-5',
+                              applicable ? 'text-violet-600' : 'text-neutral-500'
+                            )} />
+                          </div>
+                          <div className="min-w-0">
+                            <p className={cn(
+                              'text-sm font-semibold truncate',
+                              applicable ? 'text-neutral-900' : 'text-neutral-500'
+                            )}>
+                              {coupon.name}
+                            </p>
+                            <p className="text-xs text-neutral-500 mt-0.5">
+                              {coupon.conditionDescription}
+                            </p>
+                            {!applicable && reason && (
+                              <p className="text-xs text-red-500 mt-0.5">{reason}</p>
+                            )}
+                          </div>
+                        </div>
+                        <div className="text-right flex-shrink-0">
+                          <p className={cn(
+                            'text-lg font-bold',
+                            applicable ? 'text-violet-600' : 'text-neutral-400'
+                          )}>
+                            -{formatAmount(coupon.faceValue)}
+                          </p>
+                        </div>
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {selectedCoupon && couponDiscount > 0 && (
+              <div className="mt-3 p-4 rounded-xl bg-violet-50 border border-violet-200 space-y-2 animate-fade-in">
+                <div className="flex items-center justify-between">
+                  <span className="text-sm text-neutral-600">原始金额</span>
+                  <span className="text-sm text-neutral-900">{formatAmount(amountNum)}</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-sm text-neutral-600">优惠券抵扣</span>
+                  <span className="text-sm font-medium text-violet-600">-{formatAmount(couponDiscount)}</span>
+                </div>
+                <div className="flex items-center justify-between pt-2 border-t border-violet-200">
+                  <span className="text-sm font-semibold text-neutral-900">实付金额</span>
+                  <span className="text-lg font-bold text-violet-700">{formatAmount(finalAmount)}</span>
+                </div>
+              </div>
             )}
           </div>
 

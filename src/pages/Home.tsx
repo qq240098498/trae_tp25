@@ -1,5 +1,5 @@
 import { useNavigate } from 'react-router-dom';
-import { Wallet, Clock, FileText, Plus, CarFront, ChevronRight, MapPin, Bell, AlertTriangle, AlertCircle } from 'lucide-react';
+import { Wallet, Clock, FileText, Plus, CarFront, ChevronRight, MapPin, Bell, AlertTriangle, AlertCircle, Ticket } from 'lucide-react';
 import { useParkingStore } from '@/store/useParkingStore';
 import StatCard from '@/components/StatCard';
 import { formatDuration, formatAmount, formatDate, getCurrentMonthStats, formatTimeRemaining, getDeadlineStatus } from '@/utils/stats';
@@ -9,10 +9,18 @@ import { usePaymentReminder } from '@/hooks/usePaymentReminder';
 
 export default function Home() {
   const navigate = useNavigate();
-  const { records, currentSpot, markAsPaid } = useParkingStore();
+  const { records, currentSpot, markAsPaid, getAvailableCoupons } = useParkingStore();
   const stats = getCurrentMonthStats(records);
   const recentRecords = records.slice(0, 5);
-  const { getUnpaidRecords, getUrgentRecords, getExpiredRecords, unpaidCount, urgentCount, expiredCount } = usePaymentReminder();
+  const { getUnpaidRecords, unpaidCount, urgentCount, expiredCount } = usePaymentReminder();
+
+  const availableCoupons = getAvailableCoupons();
+  const expiringSoonCount = availableCoupons.filter((c) => {
+    const now = new Date().getTime();
+    const validTo = new Date(c.validTo).getTime() + 24 * 60 * 60 * 1000 - 1;
+    const diff = validTo - now;
+    return diff > 0 && diff <= 3 * 24 * 60 * 60 * 1000;
+  }).length;
 
   const unpaidRecords = getUnpaidRecords();
 
@@ -179,7 +187,7 @@ export default function Home() {
         />
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <button
           onClick={() => navigate('/records/new')}
           className="group relative overflow-hidden rounded-2xl p-5 bg-white shadow-card hover:shadow-card-hover transition-all duration-300 text-left animate-slide-up"
@@ -192,6 +200,28 @@ export default function Home() {
             </div>
             <h3 className="text-base font-bold text-neutral-900">新增停车记录</h3>
             <p className="text-sm text-neutral-500 mt-1">记录停车信息与费用</p>
+          </div>
+        </button>
+
+        <button
+          onClick={() => navigate('/coupons')}
+          className="group relative overflow-hidden rounded-2xl p-5 bg-white shadow-card hover:shadow-card-hover transition-all duration-300 text-left animate-slide-up"
+          style={{ animationDelay: '125ms' }}
+        >
+          <div className="absolute top-0 right-0 w-24 h-24 bg-violet-50 rounded-full -translate-y-1/3 translate-x-1/3 group-hover:scale-110 transition-transform" />
+          <div className="relative z-10">
+            <div className="w-12 h-12 rounded-xl bg-violet-100 flex items-center justify-center mb-3">
+              <Ticket className="w-6 h-6 text-violet-700" />
+            </div>
+            <h3 className="text-base font-bold text-neutral-900">优惠券管理</h3>
+            <p className="text-sm text-neutral-500 mt-1">
+              {availableCoupons.length} 张可用
+              {expiringSoonCount > 0 && (
+                <span className="text-orange-600 font-medium ml-1">
+                  · {expiringSoonCount}张即将过期
+                </span>
+              )}
+            </p>
           </div>
         </button>
 
@@ -215,10 +245,10 @@ export default function Home() {
           className="group relative overflow-hidden rounded-2xl p-5 bg-white shadow-card hover:shadow-card-hover transition-all duration-300 text-left animate-slide-up"
           style={{ animationDelay: '200ms' }}
         >
-          <div className="absolute top-0 right-0 w-24 h-24 bg-violet-50 rounded-full -translate-y-1/3 translate-x-1/3 group-hover:scale-110 transition-transform" />
+          <div className="absolute top-0 right-0 w-24 h-24 bg-emerald-50 rounded-full -translate-y-1/3 translate-x-1/3 group-hover:scale-110 transition-transform" />
           <div className="relative z-10">
-            <div className="w-12 h-12 rounded-xl bg-violet-100 flex items-center justify-center mb-3">
-              <FileText className="w-6 h-6 text-violet-700" />
+            <div className="w-12 h-12 rounded-xl bg-emerald-100 flex items-center justify-center mb-3">
+              <FileText className="w-6 h-6 text-emerald-700" />
             </div>
             <h3 className="text-base font-bold text-neutral-900">费用统计</h3>
             <p className="text-sm text-neutral-500 mt-1">查看月度趋势与分类</p>

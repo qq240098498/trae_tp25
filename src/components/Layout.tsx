@@ -1,10 +1,11 @@
 import { NavLink, useNavigate } from 'react-router-dom';
-import { Home, FileText, BarChart3, CarFront, Plus } from 'lucide-react';
+import { Home, FileText, BarChart3, CarFront, Plus, Ticket } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 const navItems = [
   { to: '/', label: '首页', icon: Home },
   { to: '/records', label: '记录', icon: FileText },
+  { to: '/coupons', label: '优惠券', icon: Ticket },
   { to: '/statistics', label: '统计', icon: BarChart3 },
   { to: '/parking-spot', label: '车位', icon: CarFront },
 ];

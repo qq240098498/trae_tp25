@@ -1,4 +1,4 @@
-import type { ParkingRecord, ParkingSpot } from '@/types';
+import type { ParkingRecord, ParkingSpot, Coupon } from '@/types';
 
 export const TODAY = new Date();
 export const FORMAT_DATE = (d: Date) => d.toISOString().slice(0, 10);
@@ -212,3 +212,82 @@ export const MOCK_SPOT: ParkingSpot = {
   createdAt: new Date(TODAY.getTime() - 3600000).toISOString(),
   isActive: true,
 };
+
+export const MOCK_COUPONS: Coupon[] = [
+  {
+    id: 'c1',
+    name: '商场停车满减券',
+    faceValue: 10,
+    minAmount: 30,
+    condition: 'min_amount',
+    conditionDescription: '满30元减10元',
+    validFrom: daysAgo(5),
+    validTo: daysLater(2).toISOString().slice(0, 10),
+    isUsed: false,
+    reminderSent: false,
+    createdAt: new Date(TODAY.getTime() - 5 * 86400000).toISOString(),
+    notes: '西单大悦城消费赠送',
+  },
+  {
+    id: 'c2',
+    name: '周末停车优惠券',
+    faceValue: 15,
+    condition: 'weekend_only',
+    conditionDescription: '仅限周末使用',
+    validFrom: daysAgo(3),
+    validTo: daysLater(7).toISOString().slice(0, 10),
+    isUsed: false,
+    reminderSent: false,
+    createdAt: new Date(TODAY.getTime() - 3 * 86400000).toISOString(),
+  },
+  {
+    id: 'c3',
+    name: '工作日无门槛券',
+    faceValue: 5,
+    condition: 'none',
+    conditionDescription: '无门槛使用',
+    validFrom: daysAgo(10),
+    validTo: daysLater(1).toISOString().slice(0, 10),
+    isUsed: false,
+    reminderSent: false,
+    createdAt: new Date(TODAY.getTime() - 10 * 86400000).toISOString(),
+    notes: 'App 签到赠送',
+  },
+  {
+    id: 'c4',
+    name: '节假日停车券',
+    faceValue: 20,
+    condition: 'holiday_only',
+    conditionDescription: '仅限节假日使用',
+    validFrom: daysAgo(1),
+    validTo: daysLater(30).toISOString().slice(0, 10),
+    isUsed: false,
+    reminderSent: false,
+    createdAt: new Date(TODAY.getTime() - 86400000).toISOString(),
+  },
+  {
+    id: 'c5',
+    name: '公司附近停车券',
+    faceValue: 8,
+    condition: 'weekday_only',
+    conditionDescription: '仅限工作日使用',
+    validFrom: daysAgo(20),
+    validTo: daysAgo(5),
+    isUsed: true,
+    usedRecordId: 'r3',
+    reminderSent: false,
+    createdAt: new Date(TODAY.getTime() - 20 * 86400000).toISOString(),
+  },
+  {
+    id: 'c6',
+    name: '小区停车券',
+    faceValue: 12,
+    condition: 'none',
+    conditionDescription: '无门槛使用',
+    validFrom: daysAgo(30),
+    validTo: daysAgo(10),
+    isUsed: false,
+    reminderSent: false,
+    createdAt: new Date(TODAY.getTime() - 30 * 86400000).toISOString(),
+  },
+];

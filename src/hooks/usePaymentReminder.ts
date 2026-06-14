@@ -1,24 +1,28 @@
 import { useEffect, useCallback, useState } from 'react';
 import { useParkingStore } from '@/store/useParkingStore';
-import { formatAmount, formatTimeRemaining } from '@/utils/stats';
-import type { ParkingRecord } from '@/types';
+import { formatAmount, formatTimeRemaining, formatDate, getDaysRemaining } from '@/utils/stats';
+import type { ParkingRecord, Coupon } from '@/types';
 
 interface ReminderNotification {
   id: string;
-  recordId: string;
+  recordId?: string;
+  couponId?: string;
   title: string;
   message: string;
-  type: 'urgent' | 'reminder' | 'expired';
+  type: 'urgent' | 'reminder' | 'expired' | 'coupon';
   timestamp: number;
+  link?: string;
 }
 
 export function usePaymentReminder() {
   const {
     records,
+    coupons,
     markReminderSent,
     addActiveReminder,
     removeActiveReminder,
     activeReminders,
+    markCouponReminderSent,
   } = useParkingStore();
 
   const [notifications, setNotifications] = useState<ReminderNotification[]>([]);
@@ -44,6 +48,7 @@ export function usePaymentReminder() {
             message: `${record.locationName} 的停车费 ${formatAmount(record.amount)} 已超过缴费截止时间，请尽快缴费避免产生滞纳金！`,
             type: 'expired',
             timestamp: now,
+            link: `/records/${record.id}`,
           });
           addActiveReminder(record.id + '-expired');
         }
@@ -55,9 +60,32 @@ export function usePaymentReminder() {
           message: `${record.locationName} 的停车费 ${formatAmount(record.amount)} 将在 ${formatTimeRemaining(record.paymentDeadline)} 后截止，请及时缴费！`,
           type: timeRemaining <= 30 * 60 * 1000 ? 'urgent' : 'reminder',
           timestamp: now,
+          link: `/records/${record.id}`,
         });
         markReminderSent(record.id);
         addActiveReminder(record.id + '-reminder');
+      }
+    });
+
+    coupons.forEach((coupon: Coupon) => {
+      if (coupon.isUsed || coupon.reminderSent) return;
+
+      const daysRemaining = getDaysRemaining(coupon.validTo);
+      const reminderKey = `${coupon.id}-coupon-expiry`;
+
+      if (daysRemaining <= 3 && daysRemaining > 0 && !activeReminders.includes(reminderKey)) {
+        const dayText = daysRemaining === 1 ? '明天' : `${daysRemaining}天后`;
+        newNotifications.push({
+          id: reminderKey,
+          couponId: coupon.id,
+          title: daysRemaining === 1 ? '🎫 优惠券即将过期' : '🎫 优惠券到期提醒',
+          message: `「${coupon.name}」面额 ${formatAmount(coupon.faceValue)} 的优惠券${dayText}过期（${formatDate(coupon.validTo)}），别忘记使用哦！`,
+          type: 'coupon',
+          timestamp: now,
+          link: '/coupons',
+        });
+        markCouponReminderSent(coupon.id);
+        addActiveReminder(reminderKey);
       }
     });
 
@@ -66,7 +94,7 @@ export function usePaymentReminder() {
     }
 
     forceUpdate((n) => n + 1);
-  }, [records, markReminderSent, addActiveReminder, activeReminders]);
+  }, [records, coupons, markReminderSent, addActiveReminder, activeReminders, markCouponReminderSent]);
 
   useEffect(() => {
     checkReminders();

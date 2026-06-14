@@ -7,13 +7,14 @@ import RecordForm from '@/pages/RecordForm';
 import RecordDetail from '@/pages/RecordDetail';
 import Statistics from '@/pages/Statistics';
 import ParkingSpot from '@/pages/ParkingSpot';
+import Coupons from '@/pages/Coupons';
 import { useParkingStore } from '@/store/useParkingStore';
-import { MOCK_RECORDS, MOCK_SPOT } from '@/utils/mockData';
+import { MOCK_RECORDS, MOCK_SPOT, MOCK_COUPONS } from '@/utils/mockData';
 import PaymentReminderToast from '@/components/PaymentReminderToast';
-import type { ParkingRecord } from '@/types';
+import type { ParkingRecord, Coupon } from '@/types';
 
 function AppRoutes() {
-  const { records, currentSpot, addRecord, setCurrentSpot } = useParkingStore();
+  const { records, currentSpot, coupons, addRecord, setCurrentSpot, addCoupon } = useParkingStore();
 
   useEffect(() => {
     if (records.length === 0) {
@@ -31,7 +32,17 @@ function AppRoutes() {
       void isActive;
       setCurrentSpot(rest);
     }
-  }, [addRecord, setCurrentSpot, records.length, currentSpot]);
+    if (coupons.length === 0) {
+      MOCK_COUPONS.forEach((c) => {
+        const { id, createdAt, isUsed, reminderSent, ...rest } = c;
+        void id;
+        void createdAt;
+        void isUsed;
+        void reminderSent;
+        addCoupon(rest as Omit<Coupon, 'id' | 'createdAt' | 'isUsed' | 'reminderSent'>);
+      });
+    }
+  }, [addRecord, setCurrentSpot, addCoupon, records.length, currentSpot, coupons.length]);
 
   return (
     <Layout>
@@ -42,6 +53,7 @@ function AppRoutes() {
         <Route path="/records/new" element={<RecordForm />} />
         <Route path="/records/:id" element={<RecordDetail />} />
         <Route path="/records/:id/edit" element={<RecordForm />} />
+        <Route path="/coupons" element={<Coupons />} />
         <Route path="/statistics" element={<Statistics />} />
         <Route path="/parking-spot" element={<ParkingSpot />} />
       </Routes>

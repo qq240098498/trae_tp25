@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import {
   ArrowLeft,
@@ -16,6 +16,7 @@ import {
   CheckCircle2,
   AlertTriangle,
   AlertCircle,
+  Ticket,
 } from 'lucide-react';
 import { useParkingStore } from '@/store/useParkingStore';
 import { formatDuration, formatAmount, formatDate, formatDateTime, formatTimeRemaining, getDeadlineStatus } from '@/utils/stats';
@@ -26,10 +27,15 @@ import { openWalkingNavigation, hasCoordinates } from '@/utils/navigation';
 export default function RecordDetail() {
   const navigate = useNavigate();
   const { id } = useParams();
-  const { getRecord, deleteRecord, markAsPaid } = useParkingStore();
+  const { getRecord, deleteRecord, markAsPaid, getCoupon } = useParkingStore();
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
   const record = id ? getRecord(id) : undefined;
+
+  const coupon = useMemo(() => {
+    if (!record?.couponId) return null;
+    return getCoupon(record.couponId) || null;
+  }, [record, getCoupon]);
 
   if (!record) {
     return (
@@ -210,7 +216,14 @@ export default function RecordDetail() {
           <div className="flex items-end justify-between">
             <div>
               <p className="text-sm text-white/70">本次停车费用</p>
-              <p className="text-3xl font-bold mt-1">{formatAmount(record.amount)}</p>
+              {record.couponId && record.originalAmount ? (
+                <div className="mt-1">
+                  <p className="text-sm text-white/50 line-through">{formatAmount(record.originalAmount)}</p>
+                  <p className="text-3xl font-bold">{formatAmount(record.amount)}</p>
+                </div>
+              ) : (
+                <p className="text-3xl font-bold mt-1">{formatAmount(record.amount)}</p>
+              )}
             </div>
             <span
               className={cn(
@@ -223,6 +236,36 @@ export default function RecordDetail() {
           </div>
         </div>
       </div>
+
+      {coupon && record.couponDiscount && (
+        <div className="bg-gradient-to-br from-violet-50 to-violet-100 rounded-2xl p-5 shadow-card border border-violet-200 animate-slide-up">
+          <div className="flex items-start gap-4">
+            <div className="w-12 h-12 rounded-xl bg-violet-200 flex items-center justify-center flex-shrink-0">
+              <Ticket className="w-6 h-6 text-violet-700" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-2">
+                <h4 className="text-base font-bold text-violet-900">已使用优惠券</h4>
+                <CheckCircle2 className="w-4 h-4 text-violet-600" />
+              </div>
+              <p className="text-sm font-semibold text-violet-800 mt-1">{coupon.name}</p>
+              <p className="text-xs text-violet-600 mt-0.5">{coupon.conditionDescription}</p>
+              <div className="flex items-center gap-4 mt-3">
+                <div>
+                  <p className="text-xs text-violet-600">优惠抵扣</p>
+                  <p className="text-lg font-bold text-violet-700">-{formatAmount(record.couponDiscount)}</p>
+                </div>
+                {record.originalAmount && (
+                  <div>
+                    <p className="text-xs text-violet-600">原始金额</p>
+                    <p className="text-sm text-violet-700 line-through">{formatAmount(record.originalAmount)}</p>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {!record.isPrepaid && record.paymentDeadline && (
         <div className={cn(
