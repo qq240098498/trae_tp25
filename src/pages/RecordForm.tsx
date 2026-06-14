@@ -12,7 +12,7 @@ export default function RecordForm() {
   const { id } = useParams();
   const location = useLocation();
   const isEdit = location.pathname.includes('/edit') && !!id;
-  const { addRecord, updateRecord, getRecord, getAvailableCoupons, markCouponUsed, markCouponUnused, getCoupon } = useParkingStore();
+  const { addRecord, updateRecord, getRecord, getAvailableCoupons, getCoupon } = useParkingStore();
 
   const [date, setDate] = useState(new Date().toISOString().slice(0, 10));
   const [locationName, setLocationName] = useState('');
@@ -33,7 +33,6 @@ export default function RecordForm() {
 
   const [selectedCouponId, setSelectedCouponId] = useState<string | null>(null);
   const [showCouponPicker, setShowCouponPicker] = useState(false);
-  const [originalCouponId, setOriginalCouponId] = useState<string | null>(null);
 
   const amountNum = parseFloat(amount) || 0;
 
@@ -82,7 +81,6 @@ export default function RecordForm() {
         setReminderEnabled(record.reminderEnabled);
         if (record.couponId) {
           setSelectedCouponId(record.couponId);
-          setOriginalCouponId(record.couponId);
         }
         if (record.paymentDeadline) {
           const deadline = new Date(record.paymentDeadline);
@@ -122,14 +120,6 @@ export default function RecordForm() {
   const handleSubmit = () => {
     if (!canSubmit) return;
 
-    const newRecordId = isEdit ? id! : null;
-
-    if (isEdit) {
-      if (originalCouponId && originalCouponId !== selectedCouponId) {
-        markCouponUnused(originalCouponId);
-      }
-    }
-
     const recordData = {
       date,
       locationName: locationName.trim(),
@@ -149,18 +139,10 @@ export default function RecordForm() {
       reminderSent: false,
     };
 
-    let recordIdToUse = newRecordId;
-
     if (isEdit) {
       updateRecord(id!, recordData);
     } else {
-      const tempId = Math.random().toString(36).slice(2, 10) + Date.now().toString(36);
-      recordIdToUse = tempId;
       addRecord(recordData);
-    }
-
-    if (selectedCouponId && recordIdToUse) {
-      markCouponUsed(selectedCouponId, recordIdToUse);
     }
 
     navigate('/records');

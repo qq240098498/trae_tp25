@@ -9,7 +9,7 @@ interface ParkingState {
   activeReminders: string[];
   coupons: Coupon[];
 
-  addRecord: (data: Omit<ParkingRecord, 'id' | 'createdAt'>) => void;
+  addRecord: (data: Omit<ParkingRecord, 'id' | 'createdAt'>) => string;
   updateRecord: (id: string, data: Partial<ParkingRecord>) => void;
   deleteRecord: (id: string) => void;
   getRecord: (id: string) => ParkingRecord | undefined;
@@ -61,24 +61,72 @@ export const useParkingStore = create<ParkingState>()(
           id: generateId(),
           createdAt: new Date().toISOString(),
         };
-        set((state) => ({
-          records: [newRecord, ...state.records],
-        }));
+        set((state) => {
+          let newCoupons = state.coupons;
+          if (data.couponId) {
+            newCoupons = state.coupons.map((c) =>
+              c.id === data.couponId
+                ? { ...c, isUsed: true, usedRecordId: newRecord.id }
+                : c
+            );
+          }
+          return {
+            records: [newRecord, ...state.records],
+            coupons: newCoupons,
+          };
+        });
+        return newRecord.id;
       },
 
       updateRecord: (id, data) => {
-        set((state) => ({
-          records: state.records.map((r) =>
-            r.id === id ? { ...r, ...data } : r
-          ),
-        }));
+        set((state) => {
+          const oldRecord = state.records.find((r) => r.id === id);
+          const oldCouponId = oldRecord?.couponId;
+          const newCouponId = data.couponId;
+
+          let newCoupons = state.coupons;
+
+          if (oldCouponId && oldCouponId !== newCouponId) {
+            newCoupons = newCoupons.map((c) =>
+              c.id === oldCouponId
+                ? { ...c, isUsed: false, usedRecordId: undefined }
+                : c
+            );
+          }
+          if (newCouponId && newCouponId !== oldCouponId) {
+            newCoupons = newCoupons.map((c) =>
+              c.id === newCouponId
+                ? { ...c, isUsed: true, usedRecordId: id }
+                : c
+            );
+          }
+
+          return {
+            records: state.records.map((r) =>
+              r.id === id ? { ...r, ...data } : r
+            ),
+            coupons: newCoupons,
+          };
+        });
       },
 
       deleteRecord: (id) => {
-        set((state) => ({
-          records: state.records.filter((r) => r.id !== id),
-          activeReminders: state.activeReminders.filter((rid) => rid !== id),
-        }));
+        set((state) => {
+          const record = state.records.find((r) => r.id === id);
+          let newCoupons = state.coupons;
+          if (record?.couponId) {
+            newCoupons = state.coupons.map((c) =>
+              c.id === record.couponId
+                ? { ...c, isUsed: false, usedRecordId: undefined }
+                : c
+            );
+          }
+          return {
+            records: state.records.filter((r) => r.id !== id),
+            activeReminders: state.activeReminders.filter((rid) => rid !== id),
+            coupons: newCoupons,
+          };
+        });
       },
 
       getRecord: (id) => {
