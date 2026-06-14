@@ -14,11 +14,20 @@ import {
   History,
   Trash2,
   Eye,
+  Navigation,
+  Map as MapIcon,
+  Sparkles,
 } from 'lucide-react';
 import { useParkingStore } from '@/store/useParkingStore';
 import { formatDate } from '@/utils/stats';
 import { cn } from '@/lib/utils';
 import Empty from '@/components/Empty';
+import LocationPickerModal from '@/components/LocationPickerModal';
+import {
+  openWalkingNavigation,
+  hasCoordinates,
+  INDOOR_DESCRIPTION_TIPS,
+} from '@/utils/navigation';
 
 export default function ParkingSpot() {
   const navigate = useNavigate();
@@ -29,9 +38,14 @@ export default function ParkingSpot() {
   const [area, setArea] = useState('');
   const [notes, setNotes] = useState('');
   const [photo, setPhoto] = useState<string>('');
+  const [lat, setLat] = useState<number | null>(null);
+  const [lng, setLng] = useState<number | null>(null);
+  const [indoorDescription, setIndoorDescription] = useState('');
   const [showPhotoPreview, setShowPhotoPreview] = useState(false);
   const [previewPhoto, setPreviewPhoto] = useState('');
   const [showHistory, setShowHistory] = useState(false);
+  const [showLocationPicker, setShowLocationPicker] = useState(false);
+  const [showIndoorTips, setShowIndoorTips] = useState(false);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const cameraInputRef = useRef<HTMLInputElement>(null);
@@ -43,6 +57,9 @@ export default function ParkingSpot() {
       setArea(currentSpot.area || '');
       setNotes(currentSpot.notes || '');
       setPhoto(currentSpot.photo || '');
+      setLat(currentSpot.lat ?? null);
+      setLng(currentSpot.lng ?? null);
+      setIndoorDescription(currentSpot.indoorDescription || '');
     }
   }, [currentSpot]);
 
@@ -91,7 +108,31 @@ export default function ParkingSpot() {
       area: area.trim() || undefined,
       photo: photo || undefined,
       notes: notes.trim() || undefined,
+      lat: lat ?? undefined,
+      lng: lng ?? undefined,
+      indoorDescription: indoorDescription.trim() || undefined,
     });
+  };
+
+  const handleNavigate = () => {
+    if (!hasCoordinates(lat, lng)) return;
+    const spotName = `${spotNumber}车位${floor ? ` · ${floor}` : ''}`;
+    openWalkingNavigation({
+      lat: lat!,
+      lng: lng!,
+      name: spotName,
+    });
+  };
+
+  const handleLocationSelect = (loc: { name: string; lat: number; lng: number }) => {
+    setLat(loc.lat);
+    setLng(loc.lng);
+  };
+
+  const handleIndoorTipClick = (tip: string) => {
+    if (indoorDescription.includes(tip)) return;
+    setIndoorDescription((prev) => (prev ? `${prev}、${tip}` : tip));
+    setShowIndoorTips(false);
   };
 
   const handleClear = () => {
@@ -101,6 +142,9 @@ export default function ParkingSpot() {
     setArea('');
     setNotes('');
     setPhoto('');
+    setLat(null);
+    setLng(null);
+    setIndoorDescription('');
   };
 
   const openPreview = (p: string) => {
@@ -149,11 +193,11 @@ export default function ParkingSpot() {
       {currentSpot && (
         <div className="bg-gradient-to-br from-violet-600 to-violet-900 rounded-2xl p-6 text-white shadow-card animate-slide-up">
           <div className="flex items-start justify-between">
-            <div className="flex items-start gap-4">
+            <div className="flex items-start gap-4 flex-1 min-w-0">
               <div className="w-14 h-14 rounded-2xl bg-white/20 backdrop-blur flex items-center justify-center flex-shrink-0">
                 <CarFront className="w-7 h-7 text-white" />
               </div>
-              <div>
+              <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2">
                   <p className="text-sm text-white/70">当前车位</p>
                   <span className="inline-flex items-center gap-1 bg-emerald-400/20 text-emerald-200 text-[10px] px-2 py-0.5 rounded-full">
@@ -161,8 +205,8 @@ export default function ParkingSpot() {
                     已记录
                   </span>
                 </div>
-                <p className="text-3xl font-bold mt-1 tracking-wide">{currentSpot.spotNumber}</p>
-                <div className="flex items-center gap-3 mt-2 text-sm text-white/70">
+                <p className="text-3xl font-bold mt-1 tracking-wide truncate">{currentSpot.spotNumber}</p>
+                <div className="flex items-center gap-3 mt-2 text-sm text-white/70 flex-wrap">
                   {currentSpot.floor && (
                     <span className="flex items-center gap-1">
                       <MapPin className="w-3.5 h-3.5" />
@@ -171,6 +215,12 @@ export default function ParkingSpot() {
                   )}
                   {currentSpot.area && <span>{currentSpot.area}</span>}
                 </div>
+                {currentSpot.indoorDescription && (
+                  <p className="text-xs text-white/80 mt-2 bg-white/10 px-2.5 py-1.5 rounded-lg inline-flex items-center gap-1">
+                    <Sparkles className="w-3 h-3" />
+                    {currentSpot.indoorDescription}
+                  </p>
+                )}
                 {currentSpot.notes && (
                   <p className="text-xs text-white/60 mt-2">📝 {currentSpot.notes}</p>
                 )}
@@ -183,11 +233,35 @@ export default function ParkingSpot() {
             {currentSpot.photo && (
               <button
                 onClick={() => openPreview(currentSpot.photo!)}
-                className="w-20 h-20 rounded-xl overflow-hidden border-2 border-white/30 hover:border-white/60 transition-all flex-shrink-0 bg-black/20"
+                className="w-20 h-20 rounded-xl overflow-hidden border-2 border-white/30 hover:border-white/60 transition-all flex-shrink-0 bg-black/20 ml-4"
               >
                 <img src={currentSpot.photo} alt="车位照片" className="w-full h-full object-cover" />
               </button>
             )}
+          </div>
+
+          <div className="mt-5 pt-5 border-t border-white/20 flex gap-3">
+            {hasCoordinates(currentSpot.lat, currentSpot.lng) ? (
+              <button
+                onClick={handleNavigate}
+                className="flex-1 py-2.5 rounded-xl bg-white text-violet-700 font-semibold text-sm hover:bg-white/90 active:scale-[0.98] transition-all flex items-center justify-center gap-2 shadow-lg"
+              >
+                <Navigation className="w-4 h-4" />
+                带我找车
+              </button>
+            ) : (
+              <div className="flex-1 py-2.5 rounded-xl bg-white/20 text-white/60 font-medium text-sm flex items-center justify-center gap-2 cursor-not-allowed">
+                <MapIcon className="w-4 h-4" />
+                未设置位置
+              </div>
+            )}
+            <button
+              onClick={() => navigate('/parking-spot')}
+              className="px-4 py-2.5 rounded-xl bg-white/20 text-white font-medium text-sm hover:bg-white/30 transition-all flex items-center justify-center gap-2"
+            >
+              <Eye className="w-4 h-4" />
+              查看详情
+            </button>
           </div>
         </div>
       )}
@@ -232,6 +306,91 @@ export default function ParkingSpot() {
               className="w-full px-4 py-3 rounded-xl border border-neutral-300 focus:border-primary-500 focus:ring-2 focus:ring-primary-100 outline-none transition-all text-sm"
             />
           </div>
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium text-neutral-700 mb-2 flex items-center gap-2">
+            <Navigation className="w-4 h-4 text-emerald-600" />
+            停车位置（导航用）
+          </label>
+          <div className="flex gap-2">
+            <div className="flex-1 px-4 py-3 rounded-xl border border-neutral-300 bg-neutral-50 text-sm text-neutral-600 flex items-center gap-2 overflow-hidden">
+              <MapPin className="w-4 h-4 text-neutral-400 flex-shrink-0" />
+              <span className="truncate">
+                {lat && lng
+                  ? `${lat.toFixed(4)}, ${lng.toFixed(4)}`
+                  : '未设置位置坐标'}
+              </span>
+            </div>
+            <button
+              type="button"
+              onClick={() => setShowLocationPicker(true)}
+              className="px-4 py-3 rounded-xl border border-neutral-300 bg-white hover:bg-neutral-50 text-sm font-medium text-neutral-700 transition-colors flex items-center gap-2 flex-shrink-0"
+            >
+              <MapIcon className="w-4 h-4" />
+              地图选点
+            </button>
+          </div>
+          {lat && lng && (
+            <button
+              type="button"
+              onClick={() => {
+                setLat(null);
+                setLng(null);
+              }}
+              className="text-xs text-neutral-500 hover:text-red-500 mt-1.5 transition-colors"
+            >
+              清除位置
+            </button>
+          )}
+        </div>
+
+        <div className="relative">
+          <label className="block text-sm font-medium text-neutral-700 mb-2 flex items-center gap-2">
+            <Sparkles className="w-4 h-4 text-amber-500" />
+            室内定位描述
+            <span className="text-xs font-normal text-neutral-400">
+              帮助快速找到车位
+            </span>
+          </label>
+          <div className="relative">
+            <input
+              type="text"
+              value={indoorDescription}
+              onChange={(e) => setIndoorDescription(e.target.value)}
+              placeholder="如：电梯口附近、蓝色柱子旁"
+              className="w-full px-4 py-3 pr-10 rounded-xl border border-neutral-300 focus:border-primary-500 focus:ring-2 focus:ring-primary-100 outline-none transition-all text-sm"
+            />
+            <button
+              type="button"
+              onClick={() => setShowIndoorTips(!showIndoorTips)}
+              className="absolute right-2 top-1/2 -translate-y-1/2 w-7 h-7 rounded-lg bg-amber-50 text-amber-500 flex items-center justify-center hover:bg-amber-100 transition-colors"
+            >
+              <Sparkles className="w-4 h-4" />
+            </button>
+          </div>
+          {showIndoorTips && (
+            <div className="absolute top-full left-0 right-0 mt-2 bg-white rounded-xl shadow-xl border border-neutral-200 p-3 z-20 animate-scale-in">
+              <p className="text-xs text-neutral-500 mb-2">快速添加描述：</p>
+              <div className="flex flex-wrap gap-2">
+                {INDOOR_DESCRIPTION_TIPS.map((tip) => (
+                  <button
+                    key={tip}
+                    type="button"
+                    onClick={() => handleIndoorTipClick(tip)}
+                    className={cn(
+                      'px-3 py-1.5 rounded-lg text-xs font-medium transition-all',
+                      indoorDescription.includes(tip)
+                        ? 'bg-amber-100 text-amber-700'
+                        : 'bg-neutral-100 text-neutral-600 hover:bg-amber-50 hover:text-amber-600'
+                    )}
+                  >
+                    + {tip}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
 
         <div>
@@ -412,6 +571,14 @@ export default function ParkingSpot() {
           />
         </div>
       )}
+
+      <LocationPickerModal
+        open={showLocationPicker}
+        onClose={() => setShowLocationPicker(false)}
+        onConfirm={handleLocationSelect}
+        initialLat={lat || undefined}
+        initialLng={lng || undefined}
+      />
     </div>
   );
 }

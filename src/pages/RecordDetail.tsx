@@ -11,11 +11,13 @@ import {
   Trash2,
   FileText,
   Map as MapIcon,
+  Navigation,
 } from 'lucide-react';
 import { useParkingStore } from '@/store/useParkingStore';
 import { formatDuration, formatAmount, formatDate } from '@/utils/stats';
 import { PAYMENT_METHOD_LABELS, PAYMENT_METHOD_COLORS } from '@/types';
 import { cn } from '@/lib/utils';
+import { openWalkingNavigation, hasCoordinates } from '@/utils/navigation';
 
 export default function RecordDetail() {
   const navigate = useNavigate();
@@ -54,6 +56,15 @@ export default function RecordDetail() {
   const handleDelete = () => {
     deleteRecord(record.id);
     navigate('/records');
+  };
+
+  const handleNavigate = () => {
+    if (!hasCoordinates(record.lat, record.lng)) return;
+    openWalkingNavigation({
+      lat: record.lat!,
+      lng: record.lng!,
+      name: record.locationName,
+    });
   };
 
   const infoItems = [
@@ -189,9 +200,18 @@ export default function RecordDetail() {
 
       {record.lat && record.lng && (
         <div className="bg-white rounded-2xl p-5 shadow-card">
-          <div className="flex items-center gap-2 mb-3">
-            <MapIcon className="w-4 h-4 text-neutral-500" />
-            <h4 className="text-sm font-semibold text-neutral-700">位置地图</h4>
+          <div className="flex items-center justify-between mb-3">
+            <div className="flex items-center gap-2">
+              <MapIcon className="w-4 h-4 text-neutral-500" />
+              <h4 className="text-sm font-semibold text-neutral-700">位置地图</h4>
+            </div>
+            <button
+              onClick={handleNavigate}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-primary-50 text-primary-700 text-xs font-medium hover:bg-primary-100 transition-colors"
+            >
+              <Navigation className="w-3.5 h-3.5" />
+              带我找车
+            </button>
           </div>
           <div className="h-48 rounded-xl overflow-hidden border border-neutral-200">
             <img

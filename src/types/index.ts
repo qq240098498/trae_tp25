@@ -20,6 +20,9 @@ export interface ParkingSpot {
   area?: string;
   photo?: string;
   notes?: string;
+  lat?: number | null;
+  lng?: number | null;
+  indoorDescription?: string;
   createdAt: string;
   isActive: boolean;
 }
